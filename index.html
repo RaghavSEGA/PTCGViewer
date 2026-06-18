@@ -1283,7 +1283,7 @@ function renderAnalysis(step,yourIdx){
   const players=cur.players||[];const yourIdx2=cur.yourIndex??0;
   const you=players[yourIdx2]||{};const opp=players[1-yourIdx2]||{};
   const yourActive=(you.active||[])[0];const oppActive=(opp.active||[])[0];
-  const yourHand=you.hand||[];const oppBench=opp.bench||[];
+  const yourBench=you.bench||[];const yourHand=you.hand||[];const oppBench=opp.bench||[];
   const missed=[];
 
   const damagedBench=oppBench.filter(p=>p&&p.hp!==undefined&&p.maxHp&&p.hp<p.maxHp);
