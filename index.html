@@ -111,7 +111,10 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .e-colorless{background:#cbd5e1;color:#1e293b}.e-unknown{background:#334155}
 
 .tool-indicator,.active-badge,.damage-chip{position:absolute;z-index:3;display:flex;align-items:center;justify-content:center;font-weight:700}
-.tool-indicator{top:4px;right:4px;width:13px;height:13px;border-radius:999px;background:var(--warn);color:#231800;font-size:7px}
+.tool-indicator{top:4px;right:4px;width:26px;height:26px;border-radius:6px;background:rgba(0,0,0,.75);border:1px solid var(--warn);color:var(--warn);font-size:7px;overflow:hidden;cursor:pointer;transition:transform .15s}
+.tool-indicator:hover{transform:scale(1.1);z-index:10}
+.tool-indicator img{width:100%;height:100%;object-fit:cover;display:block}
+.tool-indicator .tool-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:var(--warn)}
 .active-badge{bottom:28px;right:5px;font-size:7px;background:var(--brand);color:#fff;padding:2px 5px;border-radius:999px}
 .damage-chip{bottom:5px;right:5px;font-size:8px;background:rgba(127,29,29,.95);color:#fecaca;padding:2px 6px;border-radius:999px;border:1px solid rgba(248,113,113,.35)}
 
@@ -574,14 +577,15 @@ async function renderPcard(p,isActive,chosenSet,isYourTurn){
   const meta=metaFromCard(p);const art=await fetchCardArt(meta);
   const name=meta.name;const maxHp=p.maxHp||cardHpMax(p.id,p.hp);
   const hp=p.hp!==undefined?p.hp:maxHp;const pct=Math.max(0,Math.min(1,maxHp?hp/maxHp:0));
-  const hasTool=p.tools&&p.tools.length>0;const toolTitle=hasTool?p.tools.map(t=>t.name||cardName(t.id)).join(', '):'';
+  const hasTool=p.tools&&p.tools.length>0;
+  const toolTitle=hasTool?p.tools.map(t=>t.name||cardName(t.id)).join(', '):'';
   const isDamaged=hp<maxHp;const isSelected=chosenSet&&p.serial!==undefined&&chosenSet.has(p.serial);
   const damageLabel=''; // damage shown via HP bar colour only
   const activeCls=isActive&&isYourTurn?'active-turn':'';
   return`<div class="pcard ${isActive?'active-mon':''} ${isDamaged?'damaged':''} ${isSelected?'selected-action':''} ${activeCls}" data-preview-name="${escapeHtml(name)}" data-preview-img="${escapeHtml(art?.large||art?.small||'')}" title="${escapeHtml(name)}${hasTool?'\nTool: '+escapeHtml(toolTitle):''}">
     ${art?.small?`<img class="pcard-img" src="${escapeHtml(art.small)}" loading="lazy" alt="${escapeHtml(name)}"/>`:`<div class="pcard-fallback">${escapeHtml(name)}</div>`}
     <div class="pcard-shade-top"></div><div class="pcard-shade-bottom"></div>
-    ${hasTool?`<div class="tool-indicator" title="${escapeHtml(toolTitle)}">T</div>`:''}
+    ${hasTool?`<div class="tool-indicator" data-tool-names="${escapeHtml(toolTitle)}" data-tool-ids="${escapeHtml(p.tools.map(t=>t.id).join(','))}" title="${escapeHtml(toolTitle)}" id="tool-${escapeHtml(String(p.serial||p.id))}"><div class="tool-fallback">T</div></div>`:''}
     ${isActive?'<div class="active-badge">ACT</div>':''}
     ${damageLabel}
     <div class="pcard-info-top"><div class="pcard-name">${escapeHtml(name)}</div><div class="pcard-type">${escapeHtml(meta.stage||'')}</div></div>
@@ -1501,6 +1505,8 @@ async function render(){
   document.getElementById('field-you').innerHTML=`
   <div class="field-row" style="justify-content:center;min-height:0;padding:6px 0">${youActiveHtml}</div>
   <div class="field-row" style="justify-content:center;min-height:0;flex-wrap:wrap;padding:4px 0">${youBenchHtml.join('')||'<span style="font-size:11px;color:#334155">No bench</span>'}</div>`;
+  // Load tool art into indicators
+  loadToolArt([...oppBench, oppActive, ...youBench, youActive].filter(Boolean));
   const p1label=`P${(yourIdx)+1}`;const p2label=`P${(2-yourIdx)}`;
   renderPrizes(opp.prize,'prizes-opp',`P${2-yourIdx}`);renderPrizes(you.prize,'prizes-you',`P${yourIdx+1}`);
   renderSide(opp,'side-opp',`P${2-yourIdx}`);renderSide(you,'side-you',`P${yourIdx+1}`);
@@ -1648,6 +1654,22 @@ async function startViewer(){
   }catch(e){
     status.style.color='#ef4444';
     status.textContent='Error: '+e.message;
+  }
+}
+
+
+async function loadToolArt(pokemons) {
+  for (const p of pokemons) {
+    if (!p || !p.tools || !p.tools.length) continue;
+    const el = document.getElementById(`tool-${p.serial||p.id}`);
+    if (!el) continue;
+    for (const tool of p.tools) {
+      const meta = metaFromCard(tool);
+      const art = await fetchCardArt(meta);
+      if (art && art.small) {
+        el.innerHTML = `<img src="${escapeHtml(art.small)}" alt="${escapeHtml(meta.name)}" title="${escapeHtml(meta.name)}"/>`;
+      }
+    }
   }
 }
 
