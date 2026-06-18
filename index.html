@@ -160,13 +160,13 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .chip-switch{background:#1a2e1a;color:#86efac}.chip-other{background:#1e293b;color:#94a3b8}
 
 /* OPTIONS */
-.opt-entry{border:1px solid var(--line);background:var(--panel);border-radius:5px;margin-bottom:4px;padding:5px 8px;font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:flex-start}
+.opt-entry{border:1px solid var(--line);background:var(--panel);border-radius:5px;margin-bottom:4px;padding:5px 8px;font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:flex-start;min-width:0}
 .opt-entry.chosen{border-color:var(--warn);background:#1c1500;color:#fde68a}
 .opt-idx{color:var(--brand2);min-width:18px;font-weight:600;font-size:10px}
 .opt-entry.chosen .opt-idx{color:var(--warn)}
 .opt-type-badge{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:1px 5px;border-radius:3px;background:rgba(124,111,247,.15);color:#a78bfa;margin-bottom:2px;display:inline-block}
-.opt-desc{font-size:11px;color:var(--text)}
-.opt-sub{font-size:9px;color:var(--muted);margin-top:1px}
+.opt-desc{font-size:11px;color:var(--text);white-space:normal;word-break:break-word;line-height:1.4}
+.opt-sub{font-size:9px;color:var(--muted);margin-top:1px;white-space:normal;word-break:break-word}
 
 /* ANALYSIS */
 .analysis-section{margin-bottom:14px}
@@ -524,24 +524,42 @@ async function fetchCardArt(meta){
 async function preloadAllImages(){updateCacheStatus('on-demand');}
 
 function hpColor(pct){return pct>0.5?'hp-high':pct>0.25?'hp-mid':'hp-low'}
-function buildEnergyPips(energies){
+function energyNameToClass(nm){
+  nm=(nm||'').toLowerCase();
+  if(nm.includes('{r}')||nm.includes('fire'))return'e-fire';
+  if(nm.includes('{w}')||nm.includes('water'))return'e-water';
+  if(nm.includes('{g}')||nm.includes('grass'))return'e-grass';
+  if(nm.includes('{l}')||nm.includes('lightning'))return'e-lightning';
+  if(nm.includes('{f}')||nm.includes('fighting'))return'e-fighting';
+  if(nm.includes('{p}')||nm.includes('psychic'))return'e-psychic';
+  if(nm.includes('{d}')||nm.includes('darkness'))return'e-darkness';
+  if(nm.includes('{m}')||nm.includes('metal'))return'e-metal';
+  if(nm.includes('{n}')||nm.includes('dragon'))return'e-dragon';
+  if(nm.includes('{c}')||nm.includes('colorless'))return'e-colorless';
+  return'e-unknown';
+}
+
+function buildEnergyPips(energies, energyCards){
+  // energies is an array of card IDs (ints); energyCards has the full objects with names
   if(!energies||!energies.length)return'<span style="font-size:8px;color:#475569">—</span>';
+  // Build a lookup from card ID to name using energyCards
+  const cardLookup={};
+  for(const ec of(energyCards||[])){
+    if(ec&&ec.id!=null)cardLookup[ec.id]=ec.name||cardName(ec.id)||'';
+  }
   return energies.map(e=>{
-    // Try to get energy type from the energyCard's name e.g. "Basic {R} Energy" -> fire
-    let cls='e-unknown';
-    const nm=(e.name||'').toLowerCase();
-    if(nm.includes('{r}')||nm.includes('fire'))cls='e-fire';
-    else if(nm.includes('{w}')||nm.includes('water'))cls='e-water';
-    else if(nm.includes('{g}')||nm.includes('grass'))cls='e-grass';
-    else if(nm.includes('{l}')||nm.includes('lightning'))cls='e-lightning';
-    else if(nm.includes('{f}')||nm.includes('fighting'))cls='e-fighting';
-    else if(nm.includes('{p}')||nm.includes('psychic'))cls='e-psychic';
-    else if(nm.includes('{d}')||nm.includes('darkness'))cls='e-darkness';
-    else if(nm.includes('{m}')||nm.includes('metal'))cls='e-metal';
-    else if(nm.includes('{n}')||nm.includes('dragon'))cls='e-dragon';
-    else if(nm.includes('{c}')||nm.includes('colorless'))cls='e-colorless';
-    else if(e.type!==undefined)cls=`e-${ENERGY_TYPE_NAMES[e.type]||'unknown'}`;
-    return`<span class="epip ${cls}" title="${escapeHtml(e.name||energyTitle(e))}"></span>`;
+    // e may be an int (card ID) or an object
+    let nm='';
+    if(typeof e==='number'){
+      nm=cardLookup[e]||cardName(e)||'';
+    } else {
+      nm=e.name||cardName(e.id)||'';
+    }
+    // Fall back to cardDb if still empty
+    if(!nm&&typeof e==='number'){const m=cardMeta(e);nm=m?m.name:'';}
+    const cls=energyNameToClass(nm);
+    const title=nm||'Energy';
+    return`<span class="epip ${cls}" title="${escapeHtml(title)}"></span>`;
   }).join('');
 }
 function metaFromCard(card){
@@ -567,7 +585,7 @@ async function renderPcard(p,isActive,chosenSet,isYourTurn){
     ${isActive?'<div class="active-badge">ACT</div>':''}
     ${damageLabel}
     <div class="pcard-info-top"><div class="pcard-name">${escapeHtml(name)}</div><div class="pcard-type">${escapeHtml(meta.stage||'')}</div></div>
-    <div class="pcard-info-bottom"><div class="pcard-hp-shell"><div class="pcard-hp-bar"><div class="pcard-hp-fill ${hpColor(pct)}" style="width:${Math.round(pct*100)}%"></div></div><div class="pcard-hp-text">${hp}/${maxHp}</div></div><div class="pcard-energies">${buildEnergyPips(p.energies)}</div></div>
+    <div class="pcard-info-bottom"><div class="pcard-hp-shell"><div class="pcard-hp-bar"><div class="pcard-hp-fill ${hpColor(pct)}" style="width:${Math.round(pct*100)}%"></div></div><div class="pcard-hp-text">${hp}/${maxHp}</div></div><div class="pcard-energies">${buildEnergyPips(p.energies, p.energyCards)}</div></div>
   </div>`;
 }
 
@@ -641,7 +659,7 @@ function chipClass(type){
 }
 
 // ── HUMAN-READABLE OPTION DESCRIPTIONS ──
-function describeOption(opt,cur,yourIdx){
+function describeOption(opt,cur,yourIdx,step){
   const t=opt.type||'';const players=cur?.players||[];
   function getCard(area,index,pi){
     const p=players[pi??yourIdx]||{};
@@ -649,6 +667,9 @@ function describeOption(opt,cur,yourIdx){
     if(area===4)return(p.active||[])[index];
     if(area===5)return(p.bench||[])[index];
     if(area===3)return(p.discard||[])[index];
+    if(area===6)return(p.prize||[])[index];
+    if(area===8)return(cur?.looking||[])[index];
+    if(area===1&&step?.select?.deck)return step.select.deck[index];
     return null;
   }
   const cardId=opt.cardId||opt.targetCardId;
@@ -683,7 +704,17 @@ function describeOption(opt,cur,yourIdx){
   if(t==='Card'){
     const card=getCard(opt.area,opt.index,opt.playerIndex??yourIdx);
     const name=card?(card.name||cardName(card.id)):cname;
-    return{type:'Card',desc:name||`Slot ${opt.index}`,sub:''};
+    // For deck slots we can check the looking zone (search results)
+    if(!name&&opt.area===1){
+      // Area 1 = DECK — check looking zone
+      const looking=(cur?.looking||[]);
+      const lcard=looking[opt.index];
+      const lname=lcard?(lcard.name||cardName(lcard.id)):null;
+      if(lname)return{type:'Card',desc:lname,sub:'from deck'};
+    }
+    const areaNames={1:'Deck',2:'Hand',3:'Discard',4:'Active',5:'Bench',6:'Prize',8:'Search'};
+    const areaLabel=areaNames[opt.area]||'';
+    return{type:'Card',desc:name||cardName(cname||0)||`Slot ${opt.index}`,sub:name?areaLabel:areaLabel};
   }
   return{type:t||'?',desc:cname||`option ${opt.index??''}`,sub:''};
 }
@@ -1173,9 +1204,9 @@ function renderOptions(step,yourIdx){
 
   for(const[i,opt]of opts){
     const chosen=chosenIdxs.has(i);
-    const desc=describeOption(opt,step.current,yourIdx);
+    const desc=describeOption(opt,step.current,yourIdx,step);
     const score=scoreMap[i]??null;
-    const isTop=hasScores&&score===maxScore&&score>=0;
+    const isTop=hasScores&&maxScore>0&&score===maxScore&&score>=0;
     html+=`<div class="opt-entry ${chosen?'chosen':''}" style="${isTop&&!chosen?'border-color:rgba(34,197,94,.3)':''}">
       <span class="opt-idx" style="color:${chosen?'var(--warn)':isTop?'#86efac':'var(--brand2)'}">${i}</span>
       <span style="flex:1">
