@@ -1124,21 +1124,69 @@ function renderActions(step,yourIdx){
   el.innerHTML=html;
 }
 
+function scoreColor(score,maxScore){
+  if(score<0)return'#475569';
+  if(maxScore<=0)return'#94a3b8';
+  const pct=score/maxScore;
+  if(pct>0.8)return'#22c55e';
+  if(pct>0.5)return'#86efac';
+  if(pct>0.2)return'#f59e0b';
+  return'#94a3b8';
+}
+
+function renderScoreBar(score,maxScore){
+  if(score<0)return`<span style="font-size:9px;color:#475569">skip</span>`;
+  const pct=maxScore>0?Math.round((score/maxScore)*100):0;
+  const col=scoreColor(score,maxScore);
+  return`<div style="display:flex;align-items:center;gap:4px;margin-top:2px">
+    <div style="flex:1;height:3px;background:rgba(255,255,255,.08);border-radius:999px;overflow:hidden">
+      <div style="width:${pct}%;height:100%;background:${col};border-radius:999px"></div>
+    </div>
+    <span style="font-size:9px;color:${col};min-width:44px;text-align:right">${score.toLocaleString()}</span>
+  </div>`;
+}
+
 function renderOptions(step,yourIdx){
   const el=document.getElementById('tab-options');const select=step.select;
   if(!select||!select.option){el.innerHTML='<div style="font-size:11px;color:#334155;padding:4px">Deck submission phase</div>';return;}
   const action=step.action;
   const chosenIdxs=new Set(Array.isArray(action)?action.flat().filter(a=>typeof a==='number'):[]);
-  let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:8px">Context: <strong style="color:#a78bfa">${escapeHtml(select.context||select.type||'?')}</strong> &nbsp;|&nbsp; Pick ${select.minCount}–${select.maxCount}</div>`;
-  for(const[i,opt]of select.option.slice(0,50).entries()){
+  const agentScores=step.agent_scores;
+  const scoreMap={};
+  let maxScore=0;
+  if(agentScores&&agentScores.scores){
+    for(const s of agentScores.scores){
+      scoreMap[s.idx]=s.score;
+      if(s.score>maxScore)maxScore=s.score;
+    }
+  }
+  const hasScores=Object.keys(scoreMap).length>0;
+
+  let html=`<div style="font-size:10px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:8px">
+    <span>Context: <strong style="color:#a78bfa">${escapeHtml(select.context||select.type||'?')}</strong> &nbsp;|&nbsp; Pick ${select.minCount}–${select.maxCount}</span>
+    ${hasScores?'<span style="font-size:9px;background:rgba(34,197,94,.12);color:#86efac;padding:1px 6px;border-radius:99px;border:1px solid rgba(34,197,94,.25)">Agent scores available</span>':'<span style="font-size:9px;color:#475569">No score data</span>'}
+  </div>`;
+
+  // Sort by score if available, otherwise keep original order
+  const opts=[...select.option.entries()].slice(0,50);
+  if(hasScores) opts.sort((a,b)=>(scoreMap[b[0]]??-Infinity)-(scoreMap[a[0]]??-Infinity));
+
+  for(const[i,opt]of opts){
     const chosen=chosenIdxs.has(i);
     const desc=describeOption(opt,step.current,yourIdx);
-    html+=`<div class="opt-entry ${chosen?'chosen':''}">
-      <span class="opt-idx">${i}</span>
+    const score=scoreMap[i]??null;
+    const isTop=hasScores&&score===maxScore&&score>=0;
+    html+=`<div class="opt-entry ${chosen?'chosen':''}" style="${isTop&&!chosen?'border-color:rgba(34,197,94,.3)':''}">
+      <span class="opt-idx" style="color:${chosen?'var(--warn)':isTop?'#86efac':'var(--brand2)'}">${i}</span>
       <span style="flex:1">
-        <div class="opt-type-badge">${escapeHtml(desc.type)}</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <div class="opt-type-badge">${escapeHtml(desc.type)}</div>
+          ${chosen?'<span style="font-size:9px;background:rgba(245,158,11,.15);color:#fde68a;padding:1px 5px;border-radius:3px">Chosen</span>':''}
+          ${isTop&&!chosen?'<span style="font-size:9px;background:rgba(34,197,94,.12);color:#86efac;padding:1px 5px;border-radius:3px">Top score</span>':''}
+        </div>
         <div class="opt-desc">${escapeHtml(desc.desc)}</div>
         ${desc.sub?`<div class="opt-sub">${escapeHtml(desc.sub)}</div>`:''}
+        ${score!==null?renderScoreBar(score,maxScore):''}
       </span>
     </div>`;
   }
